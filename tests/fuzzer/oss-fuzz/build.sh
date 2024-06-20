@@ -60,25 +60,23 @@ cd build && make -j$(nproc) && cd ..
 find $SRC/libwebp-test-data -type f -size -32k -iname "*.webp" \
   -exec zip -qju fuzz_seed_corpus.zip "{}" \;
 
-if [ "$FUZZING_ENGINE" == "libfuzzer" ]
-then
-  # The following is taken from https://github.com/google/oss-fuzz/blob/31ac7244748ea7390015455fb034b1f4eda039d9/infra/base-images/base-builder/compile_fuzztests.sh#L59
-  # Iterate the fuzz binaries and list each fuzz entrypoint in the binary. For
-  # each entrypoint create a wrapper script that calls into the binaries the
-  # given entrypoint as argument.
-  # The scripts will be named:
-  # {binary_name}@{fuzztest_entrypoint}
-  FUZZ_TEST_BINARIES_OUT_PATHS=$(find ./build/tests/fuzzer/ -executable -type f)
-  echo "Fuzz binaries: $FUZZ_TEST_BINARIES_OUT_PATHS"
-  for fuzz_main_file in $FUZZ_TEST_BINARIES_OUT_PATHS; do
-    FUZZ_TESTS=$($fuzz_main_file --list_fuzz_tests | cut -d ' ' -f 4)
-    cp -f ${fuzz_main_file} $OUT/
-    fuzz_basename=$(basename $fuzz_main_file)
-    chmod -x $OUT/$fuzz_basename
-    for fuzz_entrypoint in $FUZZ_TESTS; do
-      TARGET_FUZZER="${fuzz_basename}@$fuzz_entrypoint"
-      # Write executer script
-      cat << EOF > $OUT/$TARGET_FUZZER
+# The following is taken from https://github.com/google/oss-fuzz/blob/31ac7244748ea7390015455fb034b1f4eda039d9/infra/base-images/base-builder/compile_fuzztests.sh#L59
+# Iterate the fuzz binaries and list each fuzz entrypoint in the binary. For
+# each entrypoint create a wrapper script that calls into the binaries the
+# given entrypoint as argument.
+# The scripts will be named:
+# {binary_name}@{fuzztest_entrypoint}
+FUZZ_TEST_BINARIES_OUT_PATHS=$(find ./build/tests/fuzzer/ -executable -type f)
+echo "Fuzz binaries: $FUZZ_TEST_BINARIES_OUT_PATHS"
+for fuzz_main_file in $FUZZ_TEST_BINARIES_OUT_PATHS; do
+  FUZZ_TESTS=$($fuzz_main_file --list_fuzz_tests | cut -d ' ' -f 4)
+  cp -f ${fuzz_main_file} $OUT/
+  fuzz_basename=$(basename $fuzz_main_file)
+  chmod -x $OUT/$fuzz_basename
+  for fuzz_entrypoint in $FUZZ_TESTS; do
+    TARGET_FUZZER="${fuzz_basename}@$fuzz_entrypoint"
+    # Write executer script
+    cat << EOF > $OUT/$TARGET_FUZZER
 #!/bin/sh
 # LLVMFuzzerTestOneInput for fuzzer detection.
 this_dir=\$(dirname "\$0")
@@ -87,10 +85,9 @@ chmod +x \$this_dir/$fuzz_basename
 \$this_dir/$fuzz_basename --fuzz=$fuzz_entrypoint -- \$@
 chmod -x \$this_dir/$fuzz_basename
 EOF
-      chmod +x $OUT/$TARGET_FUZZER
-    done
-    # Copy data.
-    cp fuzz_seed_corpus.zip $OUT/${fuzz_basename}_seed_corpus.zip
-    cp tests/fuzzer/fuzz.dict $OUT/${fuzz_basename}.dict
+    chmod +x $OUT/$TARGET_FUZZER
   done
-fi
+  # Copy data.
+  cp fuzz_seed_corpus.zip $OUT/${fuzz_basename}_seed_corpus.zip
+  cp tests/fuzzer/fuzz.dict $OUT/${fuzz_basename}.dict
+done
